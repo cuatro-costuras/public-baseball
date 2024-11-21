@@ -83,9 +83,10 @@ else:
 
                 st.write(f"### Consistency Score for {pitch_type}: **{overall_consistency_score:.2f}**")
 
-                # Step 4: Rank the selected pitcher among all pitchers
+                # Step 4: Rank by consistency for the selected pitch type
+                pitch_type_data = data[data["pitch_type"] == pitch_type]  # Filter all data by pitch type
                 consistency_scores = (
-                    data.groupby("player_name")
+                    pitch_type_data.groupby("player_name")
                     .apply(lambda x: np.sqrt(x["pfx_x"].std()**2 + x["pfx_z"].std()**2))
                     .reset_index(name="Consistency Score")
                 )
@@ -98,7 +99,7 @@ else:
 
                 st.write(f"### Rank: {int(selected_pitcher_rank)} out of {len(consistency_scores)} pitchers")
 
-                # Step 5: Movement Plot with Mean and Standard Deviation
+                # Step 5: Movement Plot with Mean and Standard Deviations
                 st.write(f"### Movement Plot for {pitch_type} (Pitcher: {pitcher_name})")
 
                 mean_pfx_x = pitch_data["pfx_x"].mean()
@@ -121,15 +122,13 @@ else:
                     tooltip=["pfx_x", "pfx_z"]
                 )
 
-                # Draw circles representing standard deviations
+                # Ellipses for standard deviations
                 std_ellipse = alt.Chart(pd.DataFrame({
-                    "pfx_x": [mean_pfx_x],
-                    "pfx_z": [mean_pfx_z],
-                    "std_x": [horizontal_std],
-                    "std_z": [vertical_std],
-                })).mark_circle(size=300, color="lightblue", opacity=0.3).encode(
-                    x="pfx_x",
-                    y="pfx_z"
+                    "x": [mean_pfx_x - horizontal_std, mean_pfx_x + horizontal_std],
+                    "y": [mean_pfx_z - vertical_std, mean_pfx_z + vertical_std]
+                })).mark_circle(size=300, opacity=0.3, color="lightblue").encode(
+                    x="x",
+                    y="y"
                 )
 
                 st.altair_chart(movement_plot + mean_marker + std_ellipse, use_container_width=True)

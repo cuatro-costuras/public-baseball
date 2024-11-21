@@ -5,6 +5,22 @@ import altair as alt
 import requests
 from io import BytesIO
 
+# Mapping pitch type abbreviations to full text
+pitch_type_mapping = {
+    "FF": "Four-Seam Fastball",
+    "SL": "Slider",
+    "CU": "Curveball",
+    "CH": "Changeup",
+    "FS": "Splitter",
+    "SI": "Sinker",
+    "FC": "Cutter",
+    "KC": "Knuckle Curve",
+    "KN": "Knuckleball",
+    "SV": "Sweeper",
+    "ST": "Sweeping Curve",
+    "CS": "Slow Curve",
+}
+
 # Function to load 2024 Statcast data from GitHub (March to October)
 @st.cache_data
 def load_2024_data():
@@ -23,6 +39,9 @@ def load_2024_data():
             st.warning(f"HTTP Error for file: {file_name} - {http_err}")
         except Exception as e:
             st.error(f"Error loading file {file_name}: {e}")
+    # Map pitch types to full text
+    combined_data["pitch_type"] = combined_data["pitch_type"].map(pitch_type_mapping).fillna("Unknown")
+    combined_data = combined_data[combined_data["pitch_type"] != "Unknown"]  # Remove unknown pitch types
     return combined_data
 
 # Load the data
@@ -34,28 +53,16 @@ if data.empty:
 else:
     st.title("MLB Shape Consistency App")
 
-    # Dropdown to display all pitcher names
-    all_pitchers = data["player_name"].dropna().unique()
-    pitcher_dropdown = st.selectbox("Select a pitcher from the dropdown:", sorted(all_pitchers))
+    # Step 1: Combine search bar and dropdown for pitcher selection
+    all_pitchers = sorted(data["player_name"].dropna().unique())
+    pitcher_name = st.selectbox(
+        "Search or select a pitcher:",
+        options=["Type a name or select..."] + all_pitchers
+    )
 
-    # Text input for searching pitchers
-    pitcher_name_search = st.text_input("Search for a pitcher by name:")
-
-    # Combine dropdown and search functionality
-    if pitcher_name_search:
-        filtered_pitchers = data[data["player_name"].str.contains(pitcher_name_search, case=False, na=False)]
-    else:
-        filtered_pitchers = data[data["player_name"] == pitcher_dropdown]
-
-    if filtered_pitchers.empty:
-        st.warning("No pitcher found with that name.")
-    else:
-        # Get unique pitcher names for user selection
-        pitcher_options = filtered_pitchers["player_name"].unique()
-        selected_pitcher = st.selectbox("Select a pitcher:", pitcher_options)
-
-        # Filter data for the selected pitcher
-        pitcher_data = data[data["player_name"] == selected_pitcher]
+    # Filter data for the selected pitcher
+    if pitcher_name and pitcher_name != "Type a name or select...":
+        pitcher_data = data[data["player_name"] == pitcher_name]
 
         # Step 2: Dropdown for pitch type
         arsenal = pitcher_data["pitch_type"].dropna().unique()
@@ -66,51 +73,41 @@ else:
             if pitch_data.empty:
                 st.warning("No data available for the selected pitch type.")
             else:
-                # Step 3: Movement Plot using Altair
-                st.write(f"Movement Plot for {pitch_type} (Pitcher: {selected_pitcher})")
-                chart = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
-                    x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
-                    y=alt.Y("pfx_z", title="Vertical Break (pfx_z)"),
-                    tooltip=["pfx_x", "pfx_z"]
-                ).properties(
-                    title=f"{selected_pitcher} - {pitch_type} Movement",
-                    width=600,
-                    height=400
-                )
-                st.altair_chart(chart, use_container_width=True)
-
-                # Step 4: Consistency Score and Visualization
-                st.write("### Pitch Consistency")
-
-                # Calculate consistency metrics
+                # Step 3: Calculate consistency score
                 horizontal_std = pitch_data["pfx_x"].std()
                 vertical_std = pitch_data["pfx_z"].std()
                 overall_consistency_score = np.sqrt(horizontal_std**2 + vertical_std**2)
 
-                st.write(f"Consistency Score: **{overall_consistency_score:.2f}**")
+                st.write(f"### Consistency Score for {pitch_type}: **{overall_consistency_score:.2f}**")
 
-                # Median and IQR
-                horizontal_median = pitch_data["pfx_x"].median()
-                vertical_median = pitch_data["pfx_z"].median()
-                horizontal_range = np.percentile(pitch_data["pfx_x"], [25, 75])
-                vertical_range = np.percentile(pitch_data["pfx_z"], [25, 75])
-
-                # Altair visualization for median and ranges
-                iqr_chart = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
-                    x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
-                    y=alt.Y("pfx_z", title="Vertical Break (pfx_z)")
-                ).properties(
-                    title=f"{selected_pitcher} - {pitch_type} Consistency",
-                    width=600,
-                    height=400
-                ) + alt.Chart(pd.DataFrame({
-                    "x": [horizontal_median],
-                    "y": [vertical_median],
-                    "color": ["Median"]
-                })).mark_point(size=120, shape="triangle", color="red").encode(
-                    x="x",
-                    y="y",
-                    tooltip=["x", "y"]
+                # Step 4: Rank the selected pitcher among all pitchers
+                consistency_scores = (
+                    data.groupby("player_name")
+                    .apply(lambda x: np.sqrt(x["pfx_x"].std()**2 + x["pfx_z"].std()**2))
+                    .reset_index(name="Consistency Score")
                 )
 
-                st.altair_chart(iqr_chart, use_container_width=True)
+                # Add rank
+                consistency_scores["Rank"] = consistency_scores["Consistency Score"].rank()
+                selected_pitcher_rank = consistency_scores.loc[
+                    consistency_scores["player_name"] == pitcher_name, "Rank"
+                ].values[0]
+
+                st.write(f"### Rank: {int(selected_pitcher_rank)} out of {len(consistency_scores)} pitchers")
+
+                # Visualize the ranking
+                bar_chart = alt.Chart(consistency_scores).mark_bar().encode(
+                    x=alt.X("Consistency Score", title="Consistency Score"),
+                    y=alt.Y("player_name", sort="-x", title="Pitcher"),
+                    color=alt.condition(
+                        alt.datum.player_name == pitcher_name,  # Highlight selected pitcher
+                        alt.value("orange"),
+                        alt.value("steelblue"),
+                    )
+                ).properties(
+                    title="Pitcher Consistency Ranking",
+                    width=700,
+                    height=400
+                )
+
+                st.altair_chart(bar_chart, use_container_width=True)

@@ -32,73 +32,85 @@ data = load_2024_data()
 if data.empty:
     st.error("No data available. Please ensure the 2024 data files are uploaded to the repository.")
 else:
-    st.title("MLB Pitch Movement Analysis App")
+    st.title("MLB Shape Consistency App")
 
-    # Step 1: Search bar for pitcher
-    pitcher_name = st.text_input("Search for a pitcher by name:")
-    if pitcher_name:
-        filtered_pitchers = data[data["player_name"].str.contains(pitcher_name, case=False, na=False)]
-        if filtered_pitchers.empty:
-            st.warning("No pitcher found with that name.")
-        else:
-            pitcher_options = filtered_pitchers["player_name"].unique()
-            selected_pitcher = st.selectbox("Select a pitcher:", pitcher_options)
-            pitcher_data = data[data["player_name"] == selected_pitcher]
+    # Dropdown to display all pitcher names
+    all_pitchers = data["player_name"].dropna().unique()
+    pitcher_dropdown = st.selectbox("Select a pitcher from the dropdown:", sorted(all_pitchers))
 
-            # Step 2: Dropdown for pitch type
-            arsenal = pitcher_data["pitch_type"].dropna().unique()
-            pitch_type = st.selectbox("Select a pitch type from their arsenal:", arsenal)
+    # Text input for searching pitchers
+    pitcher_name_search = st.text_input("Search for a pitcher by name:")
 
-            if pitch_type:
-                pitch_data = pitcher_data[pitcher_data["pitch_type"] == pitch_type]
-                if pitch_data.empty:
-                    st.warning("No data available for the selected pitch type.")
-                else:
-                    # Step 3: Movement Plot using Altair
-                    st.write(f"Movement Plot for {pitch_type} (Pitcher: {selected_pitcher})")
-                    chart = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
-                        x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
-                        y=alt.Y("pfx_z", title="Vertical Break (pfx_z)"),
-                        tooltip=["pfx_x", "pfx_z"]
-                    ).properties(
-                        title=f"{selected_pitcher} - {pitch_type} Movement",
-                        width=600,
-                        height=400
-                    )
-                    st.altair_chart(chart, use_container_width=True)
+    # Combine dropdown and search functionality
+    if pitcher_name_search:
+        filtered_pitchers = data[data["player_name"].str.contains(pitcher_name_search, case=False, na=False)]
+    else:
+        filtered_pitchers = data[data["player_name"] == pitcher_dropdown]
 
-                    # Step 4: Consistency Score and Visualization
-                    st.write("### Pitch Consistency")
+    if filtered_pitchers.empty:
+        st.warning("No pitcher found with that name.")
+    else:
+        # Get unique pitcher names for user selection
+        pitcher_options = filtered_pitchers["player_name"].unique()
+        selected_pitcher = st.selectbox("Select a pitcher:", pitcher_options)
 
-                    # Calculate consistency metrics
-                    horizontal_std = pitch_data["pfx_x"].std()
-                    vertical_std = pitch_data["pfx_z"].std()
-                    overall_consistency_score = np.sqrt(horizontal_std**2 + vertical_std**2)
+        # Filter data for the selected pitcher
+        pitcher_data = data[data["player_name"] == selected_pitcher]
 
-                    st.write(f"Consistency Score: **{overall_consistency_score:.2f}**")
+        # Step 2: Dropdown for pitch type
+        arsenal = pitcher_data["pitch_type"].dropna().unique()
+        pitch_type = st.selectbox("Select a pitch type from their arsenal:", arsenal)
 
-                    # Median and IQR
-                    horizontal_median = pitch_data["pfx_x"].median()
-                    vertical_median = pitch_data["pfx_z"].median()
-                    horizontal_range = np.percentile(pitch_data["pfx_x"], [25, 75])
-                    vertical_range = np.percentile(pitch_data["pfx_z"], [25, 75])
+        if pitch_type:
+            pitch_data = pitcher_data[pitcher_data["pitch_type"] == pitch_type]
+            if pitch_data.empty:
+                st.warning("No data available for the selected pitch type.")
+            else:
+                # Step 3: Movement Plot using Altair
+                st.write(f"Movement Plot for {pitch_type} (Pitcher: {selected_pitcher})")
+                chart = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
+                    x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
+                    y=alt.Y("pfx_z", title="Vertical Break (pfx_z)"),
+                    tooltip=["pfx_x", "pfx_z"]
+                ).properties(
+                    title=f"{selected_pitcher} - {pitch_type} Movement",
+                    width=600,
+                    height=400
+                )
+                st.altair_chart(chart, use_container_width=True)
 
-                    # Altair visualization for median and ranges
-                    iqr_chart = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
-                        x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
-                        y=alt.Y("pfx_z", title="Vertical Break (pfx_z)")
-                    ).properties(
-                        title=f"{selected_pitcher} - {pitch_type} Consistency",
-                        width=600,
-                        height=400
-                    ) + alt.Chart(pd.DataFrame({
-                        "x": [horizontal_median],
-                        "y": [vertical_median],
-                        "color": ["Median"]
-                    })).mark_point(size=120, shape="triangle", color="red").encode(
-                        x="x",
-                        y="y",
-                        tooltip=["x", "y"]
-                    )
+                # Step 4: Consistency Score and Visualization
+                st.write("### Pitch Consistency")
 
-                    st.altair_chart(iqr_chart, use_container_width=True)
+                # Calculate consistency metrics
+                horizontal_std = pitch_data["pfx_x"].std()
+                vertical_std = pitch_data["pfx_z"].std()
+                overall_consistency_score = np.sqrt(horizontal_std**2 + vertical_std**2)
+
+                st.write(f"Consistency Score: **{overall_consistency_score:.2f}**")
+
+                # Median and IQR
+                horizontal_median = pitch_data["pfx_x"].median()
+                vertical_median = pitch_data["pfx_z"].median()
+                horizontal_range = np.percentile(pitch_data["pfx_x"], [25, 75])
+                vertical_range = np.percentile(pitch_data["pfx_z"], [25, 75])
+
+                # Altair visualization for median and ranges
+                iqr_chart = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
+                    x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
+                    y=alt.Y("pfx_z", title="Vertical Break (pfx_z)")
+                ).properties(
+                    title=f"{selected_pitcher} - {pitch_type} Consistency",
+                    width=600,
+                    height=400
+                ) + alt.Chart(pd.DataFrame({
+                    "x": [horizontal_median],
+                    "y": [vertical_median],
+                    "color": ["Median"]
+                })).mark_point(size=120, shape="triangle", color="red").encode(
+                    x="x",
+                    y="y",
+                    tooltip=["x", "y"]
+                )
+
+                st.altair_chart(iqr_chart, use_container_width=True)

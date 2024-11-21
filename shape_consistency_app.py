@@ -26,6 +26,8 @@ pitch_type_mapping = {
 def load_2024_data():
     base_url = "https://raw.githubusercontent.com/cuatro-costuras/shape-consistency-app/main/"
     combined_data = pd.DataFrame()
+    columns_to_keep = ['player_name', 'pitch_type', 'pfx_x', 'pfx_z']  # Relevant columns to keep
+
     for month in range(3, 11):  # March to October
         file_name = f'statcast_2024_{month:02d}.csv.gz'
         file_url = f"{base_url}{file_name}"
@@ -33,12 +35,13 @@ def load_2024_data():
             response = requests.get(file_url)
             response.raise_for_status()
             file_content = BytesIO(response.content)
-            data = pd.read_csv(file_content, compression='gzip')
+            data = pd.read_csv(file_content, compression='gzip', usecols=columns_to_keep)  # Keep only necessary columns
             combined_data = pd.concat([combined_data, data], ignore_index=True)
         except requests.exceptions.HTTPError as http_err:
             st.warning(f"HTTP Error for file: {file_name} - {http_err}")
         except Exception as e:
             st.error(f"Error loading file {file_name}: {e}")
+
     # Map pitch types to full text
     combined_data["pitch_type"] = combined_data["pitch_type"].map(pitch_type_mapping).fillna("Unknown")
     combined_data = combined_data[combined_data["pitch_type"] != "Unknown"]  # Remove unknown pitch types

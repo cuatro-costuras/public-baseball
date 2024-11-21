@@ -98,19 +98,38 @@ else:
 
                 st.write(f"### Rank: {int(selected_pitcher_rank)} out of {len(consistency_scores)} pitchers")
 
-                # Visualize the ranking
-                bar_chart = alt.Chart(consistency_scores).mark_bar().encode(
-                    x=alt.X("Consistency Score", title="Consistency Score"),
-                    y=alt.Y("player_name", sort="-x", title="Pitcher"),
-                    color=alt.condition(
-                        alt.datum.player_name == pitcher_name,  # Highlight selected pitcher
-                        alt.value("orange"),
-                        alt.value("steelblue"),
-                    )
-                ).properties(
-                    title="Pitcher Consistency Ranking",
-                    width=700,
-                    height=400
+                # Step 5: Movement Plot with Mean and Standard Deviation
+                st.write(f"### Movement Plot for {pitch_type} (Pitcher: {pitcher_name})")
+
+                mean_pfx_x = pitch_data["pfx_x"].mean()
+                mean_pfx_z = pitch_data["pfx_z"].mean()
+
+                # Prepare data for plotting
+                movement_plot = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
+                    x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
+                    y=alt.Y("pfx_z", title="Vertical Break (pfx_z)"),
+                    tooltip=["pfx_x", "pfx_z"]
                 )
 
-                st.altair_chart(bar_chart, use_container_width=True)
+                # Mean marker
+                mean_marker = alt.Chart(pd.DataFrame({
+                    "pfx_x": [mean_pfx_x],
+                    "pfx_z": [mean_pfx_z],
+                })).mark_point(size=150, color="red", shape="diamond").encode(
+                    x="pfx_x",
+                    y="pfx_z",
+                    tooltip=["pfx_x", "pfx_z"]
+                )
+
+                # Draw circles representing standard deviations
+                std_ellipse = alt.Chart(pd.DataFrame({
+                    "pfx_x": [mean_pfx_x],
+                    "pfx_z": [mean_pfx_z],
+                    "std_x": [horizontal_std],
+                    "std_z": [vertical_std],
+                })).mark_circle(size=300, color="lightblue", opacity=0.3).encode(
+                    x="pfx_x",
+                    y="pfx_z"
+                )
+
+                st.altair_chart(movement_plot + mean_marker + std_ellipse, use_container_width=True)

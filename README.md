@@ -28,7 +28,9 @@ This Streamlit application allows users to analyze the movement of MLB pitchers'
 ## Requirements
 - **Python 3.8 or later**
 - **Dependencies**:
-  - `pandas`
-  - `numpy`
-  - `streamlit`
-  - `matplotlib`
+  - 'pandas'
+  - 'numpy'
+  - 'altair'
+  - 'streamlit'
+  - 'requests'
+

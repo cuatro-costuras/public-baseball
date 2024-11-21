@@ -1,39 +1,28 @@
 import pandas as pd
 import numpy as np
 import streamlit as st
+import altair as alt
 import requests
 from io import BytesIO
-import matplotlib.pyplot as plt
 
 # Function to load 2024 Statcast data from GitHub (March to October)
 @st.cache_data
 def load_2024_data():
-    # Base URL for your GitHub repository
     base_url = "https://raw.githubusercontent.com/cuatro-costuras/shape-consistency-app/main/"
-
-    # Initialize an empty DataFrame
     combined_data = pd.DataFrame()
-
-    # Loop through 2024 monthly files (March to October)
-    for month in range(3, 11):  # Months 3 (March) to 10 (October)
+    for month in range(3, 11):  # March to October
         file_name = f'statcast_2024_{month:02d}.csv.gz'
         file_url = f"{base_url}{file_name}"
-
         try:
-            # Download the file from GitHub
             response = requests.get(file_url)
-            response.raise_for_status()  # Ensure the request was successful
+            response.raise_for_status()
             file_content = BytesIO(response.content)
-
-            # Load the file content into a DataFrame
             data = pd.read_csv(file_content, compression='gzip')
             combined_data = pd.concat([combined_data, data], ignore_index=True)
-
         except requests.exceptions.HTTPError as http_err:
             st.warning(f"HTTP Error for file: {file_name} - {http_err}")
         except Exception as e:
             st.error(f"Error loading file {file_name}: {e}")
-
     return combined_data
 
 # Load the data
@@ -49,15 +38,11 @@ else:
     pitcher_name = st.text_input("Search for a pitcher by name:")
     if pitcher_name:
         filtered_pitchers = data[data["player_name"].str.contains(pitcher_name, case=False, na=False)]
-
         if filtered_pitchers.empty:
             st.warning("No pitcher found with that name.")
         else:
-            # Get unique pitcher names for user selection
             pitcher_options = filtered_pitchers["player_name"].unique()
             selected_pitcher = st.selectbox("Select a pitcher:", pitcher_options)
-
-            # Filter data for the selected pitcher
             pitcher_data = data[data["player_name"] == selected_pitcher]
 
             # Step 2: Dropdown for pitch type
@@ -65,29 +50,26 @@ else:
             pitch_type = st.selectbox("Select a pitch type from their arsenal:", arsenal)
 
             if pitch_type:
-                # Filter data for the selected pitch type
                 pitch_data = pitcher_data[pitcher_data["pitch_type"] == pitch_type]
-
                 if pitch_data.empty:
                     st.warning("No data available for the selected pitch type.")
                 else:
-                    # Step 3: Movement Plot
+                    # Step 3: Movement Plot using Altair
                     st.write(f"Movement Plot for {pitch_type} (Pitcher: {selected_pitcher})")
-                    fig, ax = plt.subplots(figsize=(8, 6))
-                    ax.scatter(
-                        pitch_data["pfx_x"], pitch_data["pfx_z"], alpha=0.6, label=f"{pitch_type} movement"
+                    chart = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
+                        x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
+                        y=alt.Y("pfx_z", title="Vertical Break (pfx_z)"),
+                        tooltip=["pfx_x", "pfx_z"]
+                    ).properties(
+                        title=f"{selected_pitcher} - {pitch_type} Movement",
+                        width=600,
+                        height=400
                     )
-                    ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
-                    ax.axvline(0, color="black", linewidth=0.8, linestyle="--")
-                    ax.set_title(f"{selected_pitcher} - {pitch_type} Movement", fontsize=14)
-                    ax.set_xlabel("Horizontal Break (pfx_x)", fontsize=12)
-                    ax.set_ylabel("Vertical Break (pfx_z)", fontsize=12)
-                    ax.legend()
-                    st.pyplot(fig)
+                    st.altair_chart(chart, use_container_width=True)
 
                     # Step 4: Consistency Score and Visualization
                     st.write("### Pitch Consistency")
-                    
+
                     # Calculate consistency metrics
                     horizontal_std = pitch_data["pfx_x"].std()
                     vertical_std = pitch_data["pfx_z"].std()
@@ -95,4 +77,28 @@ else:
 
                     st.write(f"Consistency Score: **{overall_consistency_score:.2f}**")
 
-                    # Median, 25th, and 75th percent
+                    # Median and IQR
+                    horizontal_median = pitch_data["pfx_x"].median()
+                    vertical_median = pitch_data["pfx_z"].median()
+                    horizontal_range = np.percentile(pitch_data["pfx_x"], [25, 75])
+                    vertical_range = np.percentile(pitch_data["pfx_z"], [25, 75])
+
+                    # Altair visualization for median and ranges
+                    iqr_chart = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
+                        x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
+                        y=alt.Y("pfx_z", title="Vertical Break (pfx_z)")
+                    ).properties(
+                        title=f"{selected_pitcher} - {pitch_type} Consistency",
+                        width=600,
+                        height=400
+                    ) + alt.Chart(pd.DataFrame({
+                        "x": [horizontal_median],
+                        "y": [vertical_median],
+                        "color": ["Median"]
+                    })).mark_point(size=120, shape="triangle", color="red").encode(
+                        x="x",
+                        y="y",
+                        tooltip=["x", "y"]
+                    )
+
+                    st.altair_chart(iqr_chart, use_container_width=True)

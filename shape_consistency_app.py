@@ -77,58 +77,72 @@ else:
                 st.warning("No data available for the selected pitch type.")
             else:
                 # Step 3: Calculate consistency score
-                horizontal_std = pitch_data["pfx_x"].std()
-                vertical_std = pitch_data["pfx_z"].std()
+                pitch_data["pfx_x_inches"] = pitch_data["pfx_x"] * 12  # Convert to inches
+                pitch_data["pfx_z_inches"] = pitch_data["pfx_z"] * 12  # Convert to inches
+                horizontal_std = pitch_data["pfx_x_inches"].std()
+                vertical_std = pitch_data["pfx_z_inches"].std()
                 overall_consistency_score = np.sqrt(horizontal_std**2 + vertical_std**2)
 
-                st.write(f"### Consistency Score for {pitch_type}: **{overall_consistency_score:.2f}**")
+                st.write(f"### Consistency Score for {pitch_type}: **{overall_consistency_score:.2f} inches**")
 
-                # Step 4: Rank by consistency for the selected pitch type
-                pitch_type_data = data[data["pitch_type"] == pitch_type]  # Filter all data by pitch type
-                consistency_scores = (
-                    pitch_type_data.groupby("player_name")
-                    .apply(lambda x: np.sqrt(x["pfx_x"].std()**2 + x["pfx_z"].std()**2))
-                    .reset_index(name="Consistency Score")
-                )
-
-                # Add rank
-                consistency_scores["Rank"] = consistency_scores["Consistency Score"].rank()
-                selected_pitcher_rank = consistency_scores.loc[
-                    consistency_scores["player_name"] == pitcher_name, "Rank"
-                ].values[0]
-
-                st.write(f"### Rank: {int(selected_pitcher_rank)} out of {len(consistency_scores)} pitchers")
-
-                # Step 5: Movement Plot with Mean and Standard Deviations
+                # Step 4: Movement Plot
                 st.write(f"### Movement Plot for {pitch_type} (Pitcher: {pitcher_name})")
 
-                mean_pfx_x = pitch_data["pfx_x"].mean()
-                mean_pfx_z = pitch_data["pfx_z"].mean()
+                mean_pfx_x = pitch_data["pfx_x_inches"].mean()
+                mean_pfx_z = pitch_data["pfx_z_inches"].mean()
 
-                # Prepare data for plotting
+                # Scatterplot for individual pitches
                 movement_plot = alt.Chart(pitch_data).mark_circle(size=60, opacity=0.6).encode(
-                    x=alt.X("pfx_x", title="Horizontal Break (pfx_x)"),
-                    y=alt.Y("pfx_z", title="Vertical Break (pfx_z)"),
-                    tooltip=["pfx_x", "pfx_z"]
+                    x=alt.X("pfx_x_inches", title="Horizontal Break (inches)"),
+                    y=alt.Y("pfx_z_inches", title="Vertical Break (inches)"),
+                    tooltip=["pfx_x_inches", "pfx_z_inches"]
                 )
 
                 # Mean marker
                 mean_marker = alt.Chart(pd.DataFrame({
-                    "pfx_x": [mean_pfx_x],
-                    "pfx_z": [mean_pfx_z],
+                    "pfx_x_inches": [mean_pfx_x],
+                    "pfx_z_inches": [mean_pfx_z],
                 })).mark_point(size=150, color="red", shape="diamond").encode(
-                    x="pfx_x",
-                    y="pfx_z",
-                    tooltip=["pfx_x", "pfx_z"]
+                    x="pfx_x_inches",
+                    y="pfx_z_inches",
+                    tooltip=["pfx_x_inches", "pfx_z_inches"]
                 )
 
-                # Ellipses for standard deviations
-                std_ellipse = alt.Chart(pd.DataFrame({
-                    "x": [mean_pfx_x - horizontal_std, mean_pfx_x + horizontal_std],
-                    "y": [mean_pfx_z - vertical_std, mean_pfx_z + vertical_std]
-                })).mark_circle(size=300, opacity=0.3, color="lightblue").encode(
-                    x="x",
-                    y="y"
+                # Shaded rectangles for standard deviation
+                std_rect_x = alt.Chart(pd.DataFrame({
+                    "x_start": [mean_pfx_x - horizontal_std],
+                    "x_end": [mean_pfx_x + horizontal_std],
+                    "y_start": [pitch_data["pfx_z_inches"].min()],
+                    "y_end": [pitch_data["pfx_z_inches"].max()],
+                })).mark_rect(opacity=0.2, color="blue").encode(
+                    x="x_start:Q",
+                    x2="x_end:Q",
+                    y="y_start:Q",
+                    y2="y_end:Q"
                 )
 
-                st.altair_chart(movement_plot + mean_marker + std_ellipse, use_container_width=True)
+                std_rect_y = alt.Chart(pd.DataFrame({
+                    "x_start": [pitch_data["pfx_x_inches"].min()],
+                    "x_end": [pitch_data["pfx_x_inches"].max()],
+                    "y_start": [mean_pfx_z - vertical_std],
+                    "y_end": [mean_pfx_z + vertical_std],
+                })).mark_rect(opacity=0.2, color="blue").encode(
+                    x="x_start:Q",
+                    x2="x_end:Q",
+                    y="y_start:Q",
+                    y2="y_end:Q"
+                )
+
+                st.altair_chart(movement_plot + mean_marker + std_rect_x + std_rect_y, use_container_width=True)
+
+                # Add a note below the chart
+                st.write(
+                    """
+                    **Note:**
+                    - The red diamond represents the **mean movement profile** of the selected pitch type.
+                    - The blue shaded areas indicate ±1 standard deviation for horizontal and vertical break.
+                    - The consistency score is calculated as the square root of the sum of the variances 
+                      (standard deviation squared) for both horizontal and vertical movement:
+                      \n**Consistency Score = √(horizontal_std² + vertical_std²)**
+                    """
+                )

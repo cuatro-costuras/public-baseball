@@ -24,7 +24,7 @@ pitch_type_mapping = {
 # Function to load 2024 Statcast data from GitHub (March to October)
 @st.cache_data
 def load_2024_data():
-    base_url = "https://raw.githubusercontent.com/cuatro-costuras/shape-consistency-app/main/"
+    base_url = "https://raw.githubusercontent.com/cuatro-costuras/public-baseball/main/"
     combined_data = pd.DataFrame()
     columns_to_keep = ['player_name', 'pitch_type', 'pfx_x', 'pfx_z']  # Relevant columns to keep
 

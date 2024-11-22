@@ -89,7 +89,7 @@ if not data.empty:
         st.write(f"### Movement Profiles for {pitcher_name}")
 
         # Create and display violin charts with legends on the right
-        def create_violin_chart(data, field, title, y_label, scale_factor=3):
+        def create_violin_chart(data, field, title, y_label):
             base = alt.Chart(data).transform_density(
                 density=field,
                 groupby=["pitch_type"],
@@ -98,15 +98,15 @@ if not data.empty:
 
             density = base.mark_area(opacity=0.6).encode(
                 x=alt.X("value:Q", title=y_label),
-                y=alt.Y("density:Q", stack="zero", scale=alt.Scale(domain=(0, scale_factor))),
+                y=alt.Y("density:Q", stack="zero"),
                 color=alt.Color("pitch_type:N", legend=alt.Legend(orient="right", title="Pitch Type")),
             )
             reflection = base.mark_area(opacity=0.6).encode(
                 x=alt.X("value:Q", title=y_label),
-                y=alt.Y("density:Q", stack="zero", scale=alt.Scale(domain=(-scale_factor, 0))),
+                y=alt.Y("density:Q", stack="zero"),
                 color=alt.Color("pitch_type:N", legend=None),
             ).transform_calculate(
-                density=f"{scale_factor} * datum.density"
+                density="-datum.density"
             )
 
             return (density + reflection).properties(
@@ -115,9 +115,9 @@ if not data.empty:
                 height=300
             )
 
-        horizontal_violin = create_violin_chart(adjusted_pitcher_data, "pfx_x", "Horizontal Break (inches)", "Horizontal Break (inches)", scale_factor=4)
-        vertical_violin = create_violin_chart(adjusted_pitcher_data, "pfx_z", "Vertical Break (inches)", "Vertical Break (inches)", scale_factor=4)
-        velocity_violin = create_violin_chart(adjusted_pitcher_data, "release_speed", "Velocity (mph)", "Velocity (mph)", scale_factor=2)
+        horizontal_violin = create_violin_chart(adjusted_pitcher_data, "pfx_x", "Horizontal Break (inches)", "Horizontal Break (inches)")
+        vertical_violin = create_violin_chart(adjusted_pitcher_data, "pfx_z", "Vertical Break (inches)", "Vertical Break (inches)")
+        velocity_violin = create_violin_chart(adjusted_pitcher_data, "release_speed", "Velocity (mph)", "Velocity (mph)")
 
         st.altair_chart(horizontal_violin, use_container_width=True)
         st.altair_chart(vertical_violin, use_container_width=True)

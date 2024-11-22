@@ -48,12 +48,15 @@ def load_2024_data():
     return combined_data
 
 # Load the data
+st.write("Loading 2024 Statcast data...")
 data = load_2024_data()
+if not data.empty:
+    st.write("Data loaded successfully!")
+else:
+    st.error("No data available. Please ensure the 2024 data files are uploaded to the repository.")
 
 # Ensure data is loaded before continuing
-if data.empty:
-    st.error("No data available. Please ensure the 2024 data files are uploaded to the repository.")
-else:
+if not data.empty:
     st.title("MLB Movement Profile Distributions App")
 
     # Step 1: Combine search bar and dropdown for pitcher selection
@@ -66,18 +69,15 @@ else:
     # Filter data for the selected pitcher
     if pitcher_name and pitcher_name != "Type a name or select...":
         pitcher_data = data[data["player_name"] == pitcher_name]
+        st.write(f"### Movement Distributions for {pitcher_name}")
+        st.write("Sample pitcher data:", pitcher_data.head())
 
         # Step 2: Calculate consistency and rank pitches
-        st.write(f"### Movement Distributions for {pitcher_name}")
-
-        # Calculate standard deviations for each pitch type
         pitch_consistency = (
             pitcher_data.groupby("pitch_type")
             .apply(lambda x: np.sqrt(x["pfx_x"].std()**2 + x["pfx_z"].std()**2))
             .reset_index(name="Consistency Score")
         )
-
-        # Sort pitches by consistency (ascending)
         pitch_consistency = pitch_consistency.sort_values(by="Consistency Score")
         ranked_pitch_types = pitch_consistency["pitch_type"].values
 
@@ -85,21 +85,18 @@ else:
         for pitch_type in ranked_pitch_types:
             pitch_data = pitcher_data[pitcher_data["pitch_type"] == pitch_type]
 
-            # Create histogram for horizontal and vertical movement
-            hist = alt.Chart(pitch_data).mark_bar(opacity=0.6).encode(
-                alt.X("pfx_x", bin=alt.Bin(maxbins=30), title="Horizontal Break (ft)"),
+            hist_horizontal = alt.Chart(pitch_data).mark_bar(opacity=0.6).encode(
+                alt.X("pfx_x", bin=alt.Bin(maxbins=30), title="Horizontal Break (inches)"),
                 alt.Y("count()", title="Frequency"),
-                color=alt.value("#1f77b4")  # Change this color as needed
+                color=alt.value("#1f77b4")
             ).properties(title=f"{pitch_type} - Horizontal Movement")
-
-            st.altair_chart(hist, use_container_width=True)
+            st.altair_chart(hist_horizontal, use_container_width=True)
 
             hist_vertical = alt.Chart(pitch_data).mark_bar(opacity=0.6).encode(
-                alt.X("pfx_z", bin=alt.Bin(maxbins=30), title="Vertical Break (ft)"),
+                alt.X("pfx_z", bin=alt.Bin(maxbins=30), title="Vertical Break (inches)"),
                 alt.Y("count()", title="Frequency"),
-                color=alt.value("#ff7f0e")  # Change this color as needed
+                color=alt.value("#ff7f0e")
             ).properties(title=f"{pitch_type} - Vertical Movement")
-
             st.altair_chart(hist_vertical, use_container_width=True)
 
         # Display pitch consistency table

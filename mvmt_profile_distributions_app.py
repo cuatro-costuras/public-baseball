@@ -80,11 +80,9 @@ if not data.empty:
         # Adjust horizontal break (`pfx_x`) based on pitch type and handedness
         adjusted_pitcher_data = pitcher_data.copy()
         if pitcher_hand == "R":
-            # Right-handed pitchers
             adjusted_pitcher_data.loc[adjusted_pitcher_data["pitch_type"].isin(fastballs), "pfx_x"] = np.abs(adjusted_pitcher_data["pfx_x"])
             adjusted_pitcher_data.loc[adjusted_pitcher_data["pitch_type"].isin(breaking_balls), "pfx_x"] = -np.abs(adjusted_pitcher_data["pfx_x"])
         elif pitcher_hand == "L":
-            # Left-handed pitchers
             adjusted_pitcher_data.loc[adjusted_pitcher_data["pitch_type"].isin(fastballs), "pfx_x"] = -np.abs(adjusted_pitcher_data["pfx_x"])
             adjusted_pitcher_data.loc[adjusted_pitcher_data["pitch_type"].isin(breaking_balls), "pfx_x"] = np.abs(adjusted_pitcher_data["pfx_x"])
 

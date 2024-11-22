@@ -1,36 +1,60 @@
-# shape-consistency-app
+# MLB Pitch Analysis Apps
 
 ## Overview
-This Streamlit application allows users to analyze the movement of MLB pitchers' pitches using 2024 Statcast data. Users can:
-1. Search for a specific MLB pitcher.
-2. Select a pitch type from the pitcher's arsenal.
-3. Visualize the movement of the selected pitch type.
-4. See a consistency score and visualizations for pitch shape repeatability.
+This repository hosts two Streamlit applications designed to analyze MLB pitchers' pitch movement and consistency using 2024 Statcast data.
+
+1. **Shape Consistency App**:
+   - Analyze a pitcher’s ability to consistently repeat the shape of their pitches.
+   - Search for a pitcher, select a pitch type, and visualize its movement profile along with a consistency score.
+
+2. **Movement Distribution App**:
+   - View histograms of horizontal and vertical movement for each pitch type in a pitcher's arsenal.
+   - Rank pitches by their shape consistency.
+
+Both apps utilize the 2024 Statcast monthly data files.
 
 ---
 
 ## Features
+
+### **Shape Consistency App**
 - **Search for MLB Pitchers**:
-  - Quickly search the dataset to find your desired pitcher.
+  - Find and select a pitcher from the dataset.
   
 - **Pitch Arsenal Dropdown**:
-  - Once a pitcher is selected, view and choose from the available pitch types in their arsenal.
+  - Choose from the available pitch types in the pitcher's arsenal.
 
-- **Pitch Movement Plot**:
-  - Visualize the horizontal (`pfx_x`) and vertical (`pfx_z`) movement of the selected pitch type.
+- **Pitch Movement Visualization**:
+  - Display a movement plot of the selected pitch type (horizontal and vertical break).
 
 - **Consistency Score**:
-  - Calculate and display a consistency score based on the standard deviation of pitch movement.
-  - View median movement and interquartile ranges (IQR) for added insights.
+  - View a calculated consistency score for each pitch type based on its movement repeatability.
+
+---
+
+### **Movement Distribution App**
+- **Search and Filter**:
+  - Search or select a pitcher from the dataset.
+
+- **Movement Histograms**:
+  - View horizontal and vertical movement distributions for all pitch types in the arsenal.
+  - Each pitch type is visualized in a unique color for clarity.
+
+- **Shape Consistency Ranking**:
+  - Rank pitches in a pitcher's arsenal based on their movement consistency (lowest standard deviation first).
 
 ---
 
 ## Requirements
+
 - **Python 3.8 or later**
 - **Dependencies**:
-  - 'pandas'
-  - 'numpy'
-  - 'altair'
-  - 'streamlit'
-  - 'requests'
+  - `pandas`
+  - `numpy`
+  - `altair`
+  - `streamlit`
+  - `requests`
 
+Install dependencies with:
+```bash
+pip install -r requirements.txt

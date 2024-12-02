@@ -49,12 +49,6 @@ def load_monthly_statcast():
     # Map pitch types to full text
     combined_data["pitch_type"] = combined_data["pitch_type"].map(pitch_type_mapping).fillna("Unknown")
     combined_data = combined_data[combined_data["pitch_type"] != "Unknown"]
-    
-    # Calculate K-BB% for the dataset
-    combined_data["kbb_rate"] = combined_data.groupby("player_name").apply(
-        lambda x: calculate_kbb_rate(x)
-    ).reset_index(level=0, drop=True)
-    
     return combined_data
 
 # Utility functions for metric calculations
@@ -64,21 +58,15 @@ def calculate_kbb_rate(player_data):
     total_pitches = len(player_data)
     return (k_count - bb_count) / total_pitches * 100 if total_pitches > 0 else 0
 
+def calculate_race_to_2k(player_data):
+    qualifying_pitches = player_data[(player_data["balls"] == 2) | (player_data["strikes"] == 2)]
+    if qualifying_pitches.empty:
+        return 0
+    reached_two_strikes = qualifying_pitches[qualifying_pitches["strikes"] == 2]
+    return len(reached_two_strikes) / len(qualifying_pitches) * 100
+
 def calculate_percentile(value, all_values):
     return np.percentile(all_values, 100 * (value <= all_values))
-
-# Function to calculate pitch-specific metrics
-def calculate_pitch_metrics(pitch_data):
-    metrics = {}
-    metrics["Velocity"] = pitch_data["release_speed"].mean()
-    metrics["VB"] = pitch_data["pfx_z"].mean()  # Vertical break
-    metrics["HB"] = pitch_data["pfx_x"].mean()  # Horizontal break
-    metrics["Extension"] = pitch_data["release_extension"].mean()
-    metrics["VAA"] = pitch_data["plate_z"].mean()  # Approximation for VAA
-    metrics["HAA"] = pitch_data["plate_x"].mean()  # Approximation for HAA
-    metrics["Release Height"] = pitch_data["release_pos_y"].mean()
-    metrics["Release Side"] = pitch_data["plate_x"].mean()
-    return pd.DataFrame(metrics, index=["Value"])
 
 # Main App
 data = load_monthly_statcast()
@@ -97,14 +85,13 @@ else:
         
         # 2) Metrics Boxes with Percentile Rankings
         kbb_rate = calculate_kbb_rate(player_data)
-        all_kbb_rates = data["kbb_rate"].dropna()
-        race_to_2k_rate = calculate_percentile(kbb_rate, all_kbb_rates)
-        put_away_rate = calculate_percentile(kbb_rate, all_kbb_rates)
+        race_to_2k_rate = calculate_race_to_2k(player_data)
+        put_away_rate = calculate_percentile(kbb_rate, data["put_away_rate"])
 
         col1, col2, col3 = st.columns(3)
-        col1.metric("K-BB%", f"{kbb_rate:.2f}%", f"{race_to_2k_rate:.1f} percentile")
-        col2.metric("Race to 2K%", f"{race_to_2k_rate:.2f}%", f"{put_away_rate:.1f} percentile")
-        col3.metric("Put Away Rate", f"{put_away_rate:.2f}%", f"{race_to_2k_rate:.1f} percentile")
+        col1.metric("K-BB%", f"{kbb_rate:.2f}%", f"{calculate_percentile(kbb_rate, data['kbb_rate']):.1f} percentile")
+        col2.metric("Race to 2K%", f"{race_to_2k_rate:.2f}%", f"{calculate_percentile(race_to_2k_rate, data['race_to_2k_rate']):.1f} percentile")
+        col3.metric("Put Away Rate", f"{put_away_rate:.2f}%", f"{calculate_percentile(put_away_rate, data['put_away_rate']):.1f} percentile")
 
         # 3) Pitch Type Arsenal
         st.sidebar.write("### Pitch Arsenal")

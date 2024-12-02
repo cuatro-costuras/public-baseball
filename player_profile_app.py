@@ -80,7 +80,6 @@ data = load_monthly_statcast()
 if data.empty:
     st.error("No data available. Please ensure the monthly Statcast data files are uploaded.")
 else:
-    st.set_page_config(layout="wide")  # Set layout to wide
     st.title("MLB Player Profile App")
 
     # 1) Player Name Dropdown/Search Bar

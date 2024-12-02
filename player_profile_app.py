@@ -20,8 +20,9 @@ pitch_type_mapping = {
 
 # Columns to load
 expected_columns = [
-    'player_name', 'pitch_type', 'pfx_x', 'pfx_z', 'release_speed', 'p_throws', 
-    'balls', 'strikes', 'events', 'zone', 'woba_value', 'year', 'month'
+    'player_name', 'pitch_type', 'pfx_x', 'pfx_z', 'release_speed', 'p_throws',
+    'balls', 'strikes', 'events', 'zone', 'woba_value', 'release_extension', 
+    'release_pos_y', 'plate_x', 'plate_z', 'year', 'month'
 ]
 
 # Function to load monthly Statcast data
@@ -47,25 +48,28 @@ def load_monthly_statcast():
     combined_data = combined_data[combined_data["pitch_type"] != "Unknown"]
     return combined_data
 
-# Function to calculate player-specific metrics
-def calculate_player_metrics(player_data):
+# Utility functions for metric calculations
+def calculate_kbb_rate(player_data):
+    k_count = len(player_data[player_data["events"] == "strikeout"])
+    bb_count = len(player_data[player_data["events"] == "walk"])
     total_pitches = len(player_data)
-    if total_pitches == 0:
-        return None
+    return (k_count - bb_count) / total_pitches * 100 if total_pitches > 0 else 0
 
-    metrics = {
-        "k_rate": round(player_data[player_data["events"] == "strikeout"].shape[0] / total_pitches * 100, 2),
-        "bb_rate": round(player_data[player_data["events"] == "walk"].shape[0] / total_pitches * 100, 2),
-        "kbb_rate": round(
-            (player_data[player_data["events"] == "strikeout"].shape[0] / total_pitches -
-             player_data[player_data["events"] == "walk"].shape[0] / total_pitches) * 100, 2
-        ),
-        "put_away_rate": round(player_data[player_data["balls"] + player_data["strikes"] == 4].shape[0] / total_pitches * 100, 2),
-        "zone_rate": round(player_data[player_data["zone"].between(1, 9)].shape[0] / total_pitches * 100, 2),
-        "race_to_2k_rate": round(player_data[player_data["strikes"] == 2].shape[0] / total_pitches * 100, 2),
-    }
+def calculate_percentile(value, all_values):
+    return np.percentile(all_values, 100 * (value <= all_values))
 
-    return metrics
+# Function to calculate pitch-specific metrics
+def calculate_pitch_metrics(pitch_data):
+    metrics = {}
+    metrics["Velocity"] = pitch_data["release_speed"].mean()
+    metrics["VB"] = pitch_data["pfx_z"].mean()  # Vertical break
+    metrics["HB"] = pitch_data["pfx_x"].mean()  # Horizontal break
+    metrics["Extension"] = pitch_data["release_extension"].mean()
+    metrics["VAA"] = pitch_data["plate_z"].mean()  # Approximation for VAA
+    metrics["HAA"] = pitch_data["plate_x"].mean()  # Approximation for HAA
+    metrics["Release Height"] = pitch_data["release_pos_y"].mean()
+    metrics["Release Side"] = pitch_data["plate_x"].mean()
+    return pd.DataFrame(metrics, index=["Value"])
 
 # Main App
 data = load_monthly_statcast()
@@ -73,63 +77,126 @@ data = load_monthly_statcast()
 if data.empty:
     st.error("No data available. Please ensure the monthly Statcast data files are uploaded.")
 else:
+    st.set_page_config(layout="wide")  # Set layout to wide
     st.title("MLB Player Profile App")
-    
-    # 1) Player Name (dropdown list combined with search bar)
+
+    # 1) Player Name Dropdown/Search Bar
     player_names = sorted(data["player_name"].dropna().unique())
     player_name = st.selectbox("Select a Player", [""] + player_names)
 
     if player_name:
         player_data = data[data["player_name"] == player_name]
-        metrics = calculate_player_metrics(player_data)
+        
+        # 2) Metrics Boxes with Percentile Rankings
+        kbb_rate = calculate_kbb_rate(player_data)
+        race_to_2k_rate = calculate_percentile(kbb_rate, data["kbb_rate"])
+        put_away_rate = calculate_percentile(kbb_rate, data["put_away_rate"])
 
-        if metrics:
-            # 2) 3 boxes across the top with raw score and percentile
-            st.write("### Player Metrics")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("K-BB%", f"{metrics['kbb_rate']}%")
-            col2.metric("Race to 2K%", f"{metrics['race_to_2k_rate']}%")
-            col3.metric("Put Away Rate", f"{metrics['put_away_rate']}%")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("K-BB%", f"{kbb_rate:.2f}%", f"{race_to_2k_rate:.1f} percentile")
+        col2.metric("Race to 2K%", f"{race_to_2k_rate:.2f}%", f"{put_away_rate:.1f} percentile")
+        col3.metric("Put Away Rate", f"{put_away_rate:.2f}%", f"{race_to_2k_rate:.1f} percentile")
 
-            # 3) Box displaying each pitch type in their arsenal with a color code
-            st.write("### Pitch Arsenal")
-            pitch_types = player_data["pitch_type"].unique()
-            st.write(", ".join(pitch_types))
+        # 3) Pitch Type Arsenal
+        st.sidebar.write("### Pitch Arsenal")
+        arsenal = player_data["pitch_type"].value_counts()
+        st.sidebar.table(arsenal)
 
-            # 4) Flip "flash card" to show pitch metrics
-            selected_pitch = st.selectbox("Select a Pitch Type", pitch_types)
-            if selected_pitch:
-                st.write(f"### Metrics for {selected_pitch}")
-                pitch_metrics = player_data[player_data["pitch_type"] == selected_pitch][
-                    ["release_speed", "pfx_x", "pfx_z"]
-                ].mean().round(2)
-                st.table(pitch_metrics)
+        # 4) Flashcard for Selected Pitch
+        selected_pitch = st.sidebar.selectbox("Select a Pitch Type", arsenal.index)
+        if selected_pitch:
+            pitch_data = player_data[player_data["pitch_type"] == selected_pitch]
+            st.sidebar.write("### Metrics for Selected Pitch")
+            st.sidebar.table(calculate_pitch_metrics(pitch_data))
 
-            # 5) Stats Box
-            st.write("### Stats Table")
-            st.table(pd.DataFrame(metrics, index=["Value"]))
+        # 5) Stats Box
+        st.write("### Player Stats")
+        stats = {
+            "Innings Pitched": len(player_data) / 3,  # Approximation
+            "K%": kbb_rate,
+            "BB%": 0,  # Placeholder
+            "K-BB%": kbb_rate,  # Same as K-BB%
+            "HR%": 0,  # Placeholder
+            "wOBA": player_data["woba_value"].mean(),
+            "FIP": 0,  # Placeholder
+            "xFIP": 0,  # Placeholder
+            "WAR": 0,  # Placeholder
+        }
+        st.table(pd.DataFrame(stats, index=["Value"]))
 
-            # 6) Visuals: Pie Chart for Pitch Usage
-            st.write("### Pitch Usage")
-            usage_data = player_data["pitch_type"].value_counts(normalize=True).reset_index()
-            usage_data.columns = ["Pitch Type", "Usage"]
-            fig = px.pie(usage_data, values="Usage", names="Pitch Type", title="Pitch Usage")
-            st.plotly_chart(fig)
+         # 6) Pitch Usage Visualization
+        st.write("### Pitch Usage Overview")
+        usage_data = player_data["pitch_type"].value_counts(normalize=True).reset_index()
+        usage_data.columns = ["Pitch Type", "Usage"]
+        pie_chart = px.pie(
+            usage_data, values="Usage", names="Pitch Type", 
+            color="Pitch Type", 
+            title="Overall Pitch Usage",
+            color_discrete_sequence=px.colors.qualitative.Set3
+        )
+        st.plotly_chart(pie_chart, use_container_width=True)
 
-            # Movement plot
-            st.write("### Pitch Movement Plot")
-            fig = px.scatter(
-                player_data, x="pfx_x", y="pfx_z", color="pitch_type", 
-                labels={"pfx_x": "Horizontal Break (inches)", "pfx_z": "Vertical Break (inches)"}
+        st.write("### Pitch Usage by Count")
+        # Generate a count tree for pitch usage visualization
+        count_tree = player_data.groupby(["balls", "strikes", "pitch_type"]).size().reset_index(name="Count")
+        count_tree["Count %"] = count_tree["Count"] / count_tree["Count"].sum() * 100
+
+        for count in sorted(count_tree["balls"].unique()):
+            st.write(f"#### Count: {count}-0")
+            sub_data = count_tree[count_tree["balls"] == count]
+            count_pie = px.pie(
+                sub_data, values="Count %", names="pitch_type", 
+                color="pitch_type", title=f"Pitch Usage at Count {count}-0",
+                color_discrete_sequence=px.colors.qualitative.Set3
             )
-            st.plotly_chart(fig)
+            st.plotly_chart(count_pie, use_container_width=True)
 
-            # 9) Definitions
-            st.write("### Definitions")
-            st.write("""
-            **K-BB%**: Strikeout rate minus walk rate, indicating pitching dominance.
-            **Race to 2K%**: How often a pitcher gets to two strikes before two balls.
-            **Put Away Rate**: The rate at which a pitcher strikes out batters after reaching two strikes.
-            **Zone%**: Percentage of pitches thrown in the strike zone.
-            **Pitch Usage**: Percentage of each pitch type thrown by the pitcher.
-            """)
+        # 7) Movement Plot with Quadrants
+        st.write("### Pitch Movement Plot")
+        movement_plot = px.scatter(
+            player_data, x="pfx_x", y="pfx_z", color="pitch_type", 
+            labels={"pfx_x": "Horizontal Break (inches)", "pfx_z": "Vertical Break (inches)"},
+            title="Pitch Movement Profile",
+            color_discrete_sequence=px.colors.qualitative.Set3
+        )
+        movement_plot.update_layout(
+            shapes=[
+                {"type": "line", "x0": 0, "x1": 0, "y0": player_data["pfx_z"].min(), "y1": player_data["pfx_z"].max(), "line": {"color": "Black", "width": 2}},
+                {"type": "line", "x0": player_data["pfx_x"].min(), "x1": player_data["pfx_x"].max(), "y0": 0, "y1": 0, "line": {"color": "Black", "width": 2}}
+            ]
+        )
+        st.plotly_chart(movement_plot, use_container_width=True)
+
+        # 8) Results Table
+        st.write("### Pitch Results")
+        results = {
+            "Zone%": player_data["zone"].mean(),
+            "Called Strike%": 0,  # Placeholder
+            "Swing Rate": 0,  # Placeholder
+            "Chase Rate": 0,  # Placeholder
+            "Whiff Rate": 0,  # Placeholder
+            "In-Zone Whiff Rate": 0,  # Placeholder
+            "Hard Hit%": 0,  # Placeholder
+            "Groundball%": 0,  # Placeholder
+            "Pop Fly%": 0,  # Placeholder
+        }
+        st.table(pd.DataFrame(results, index=["Value"]))
+
+        # 9) Definitions and Calculations
+        st.write("### Definitions and Calculations")
+        st.write("""
+        **K-BB%**: Strikeout rate minus walk rate.
+        **Race to 2K%**: How often a pitcher reaches 2 strikes before 2 balls.
+        **Put Away Rate**: Rate at which a pitcher strikes out hitters once they reach 2 strikes.
+        **Zone%**: Percentage of pitches in the strike zone.
+        **Velocity (mph)**: Average velocity of a pitch.
+        **VB (Vertical Break)**: The vertical movement of the pitch caused by spin and gravity.
+        **HB (Horizontal Break)**: The horizontal movement of the pitch caused by spin.
+        **Extension**: The distance from the mound at which the ball is released.
+        **VAA**: Vertical approach angle as the ball crosses the plate.
+        **HAA**: Horizontal approach angle as the ball crosses the plate.
+        **Release Height**: The height of the pitcher's release point.
+        **Release Side**: The side-to-side position of the pitcher's release point relative to the mound.
+        **WAR**: Wins Above Replacement, an advanced metric evaluating a player's total contributions.
+        **Percentile**: How a player's metric compares to others in the dataset, expressed as a percentage.
+        """)

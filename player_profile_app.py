@@ -74,14 +74,14 @@ def calculate_put_away_rate(player_data):
 
 def calculate_pitch_metrics(pitch_data):
     metrics = {
-        "Velocity": pitch_data["release_speed"].mean(),
-        "Vertical Break (VB)": pitch_data["pfx_z"].mean(),
-        "Horizontal Break (HB)": pitch_data["pfx_x"].mean(),
-        "Extension": pitch_data["release_extension"].mean(),
-        "VAA": pitch_data["plate_z"].mean(),
-        "HAA": pitch_data["plate_x"].mean(),
-        "Release Height": pitch_data["release_pos_y"].mean(),
-        "Release Side": pitch_data["plate_x"].mean(),
+        "Velocity": pitch_data["release_speed"].mean() if "release_speed" in pitch_data else None,
+        "Vertical Break (VB)": pitch_data["pfx_z"].mean() if "pfx_z" in pitch_data else None,
+        "Horizontal Break (HB)": pitch_data["pfx_x"].mean() if "pfx_x" in pitch_data else None,
+        "Extension": pitch_data["release_extension"].mean() if "release_extension" in pitch_data else None,
+        "VAA": pitch_data["plate_z"].mean() if "plate_z" in pitch_data else None,
+        "HAA": pitch_data["plate_x"].mean() if "plate_x" in pitch_data else None,
+        "Release Height": pitch_data["release_pos_y"].mean() if "release_pos_y" in pitch_data else None,
+        "Release Side": pitch_data["plate_x"].mean() if "plate_x" in pitch_data else None,
     }
     return pd.DataFrame.from_dict(metrics, orient="index", columns=["Value"])
 

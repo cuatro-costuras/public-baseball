@@ -5,6 +5,9 @@ import plotly.express as px
 from io import BytesIO
 import requests
 
+# Set Streamlit page configuration
+st.set_page_config(layout="wide", page_title="MLB Player Profile App", page_icon="⚾")
+
 # Define pitch type mapping
 pitch_type_mapping = {
     "FF": "Four-Seam Fastball",

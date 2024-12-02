@@ -49,6 +49,12 @@ def load_monthly_statcast():
     # Map pitch types to full text
     combined_data["pitch_type"] = combined_data["pitch_type"].map(pitch_type_mapping).fillna("Unknown")
     combined_data = combined_data[combined_data["pitch_type"] != "Unknown"]
+    
+    # Calculate K-BB% for the dataset
+    combined_data["kbb_rate"] = combined_data.groupby("player_name").apply(
+        lambda x: calculate_kbb_rate(x)
+    ).reset_index(level=0, drop=True)
+    
     return combined_data
 
 # Utility functions for metric calculations
@@ -91,8 +97,9 @@ else:
         
         # 2) Metrics Boxes with Percentile Rankings
         kbb_rate = calculate_kbb_rate(player_data)
-        race_to_2k_rate = calculate_percentile(kbb_rate, data["kbb_rate"])
-        put_away_rate = calculate_percentile(kbb_rate, data["put_away_rate"])
+        all_kbb_rates = data["kbb_rate"].dropna()
+        race_to_2k_rate = calculate_percentile(kbb_rate, all_kbb_rates)
+        put_away_rate = calculate_percentile(kbb_rate, all_kbb_rates)
 
         col1, col2, col3 = st.columns(3)
         col1.metric("K-BB%", f"{kbb_rate:.2f}%", f"{race_to_2k_rate:.1f} percentile")

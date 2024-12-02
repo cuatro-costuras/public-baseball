@@ -27,7 +27,6 @@ def load_monthly_statcast():
     base_url = "https://raw.githubusercontent.com/cuatro-costuras/public-baseball/main/"
     combined_data = pd.DataFrame()
     
-    # Adjust these columns to match actual dataset
     relevant_columns = [
         "player_name", "pitch_type", "pfx_x", "pfx_z", "release_speed", "p_throws"
     ]
@@ -43,8 +42,6 @@ def load_monthly_statcast():
             # Check available columns in each file
             data = pd.read_csv(file_content, compression="gzip")
             available_columns = [col for col in relevant_columns if col in data.columns]
-            
-            # Filter only necessary columns
             data = data[available_columns]
             combined_data = pd.concat([combined_data, data], ignore_index=True)
         except requests.exceptions.HTTPError as http_err:
@@ -78,7 +75,42 @@ else:
 
         if selected_player and selected_player != "Type a name or select...":
             player_data = data[data["player_name"] == selected_player]
+            pitcher_hand = player_data["p_throws"].iloc[0]  # Get the handedness of the pitcher
 
-            # Metrics Section
             st.header(f"Player Profile: {selected_player}")
-            st.write("Metrics display will depend on available data.")
+            st.write(f"**Handedness**: {'Right-Handed (R)' if pitcher_hand == 'R' else 'Left-Handed (L)'}")
+
+            # Display Metrics
+            st.subheader("Top Metrics")
+            k_rate = 30.5  # Example, replace with calculation
+            bb_rate = 8.0  # Example, replace with calculation
+            st.write(f"K%: {k_rate}%")
+            st.write(f"BB%: {bb_rate}%")
+
+            # Display Pitch Arsenal
+            st.subheader("Pitch Arsenal")
+            arsenal = player_data["pitch_type"].value_counts()
+            for pitch, count in arsenal.items():
+                st.write(f"- {pitch}: {count} pitches")
+
+            # Plot Movement
+            st.subheader("Movement Plot")
+            movement_chart = alt.Chart(player_data).mark_circle(size=100).encode(
+                x=alt.X("pfx_x", title="Horizontal Break (inches)"),
+                y=alt.Y("pfx_z", title="Vertical Break (inches)"),
+                color=alt.Color("pitch_type:N", legend=alt.Legend(title="Pitch Type"))
+            ).properties(
+                width=600,
+                height=400
+            )
+            st.altair_chart(movement_chart, use_container_width=True)
+
+            # Display Definitions
+            st.subheader("Definitions")
+            st.write("""
+            - **K%**: Strikeout rate.
+            - **BB%**: Walk rate.
+            - **pfx_x**: Horizontal movement of the pitch in inches.
+            - **pfx_z**: Vertical movement of the pitch in inches.
+            """)
+
